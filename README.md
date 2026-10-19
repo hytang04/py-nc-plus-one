@@ -9,18 +9,35 @@ A REST API for an events platform. It allows users to register, browse events, R
     cd py-nc-plus-one
     ```
 
-### Database Setup
-1. Create a local PostgreSQL database
+2. Create a virtual environment
+    ```shell
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+
+3. Install the Python dependencies
+    ```shell
+    pip install -r requirements.txt
+    ```
+
+4. Create a `.env` file from the example and fill in your local PostgreSQL credentials
+    ```shell
+    cp .env.example .env
+    ```
+
+    Set `PGDATABASE` to `nc_plus_one`, and set `PGUSER`, `PGPASSWORD`, `PGHOST`, and `PGPORT` to the values for your local PostgreSQL instance.
+
+5. Create a local PostgreSQL database
     ```shell
     createdb nc_plus_one
     ```
 
-2. Setup the database
+6. Setup the database
     ```
     psql -d nc_plus_one -f db/setup.sql
     ```
 
-3. Run the seed function
+7. Run the seed function
     ```shell
     python db/seed.py
     ```
