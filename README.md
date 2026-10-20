@@ -47,5 +47,13 @@ A REST API for an events platform. It allows users to register, browse events, R
 
 8. Run the server:
     ```shell
-    uvicorn main:app --reload
+    python -m uvicorn main:app --reload
     ```
+
+### Testing
+To test, create a separate test database `nc_plus_one_test` and point the new `DATABASE_URL` at it when seeding the database and running `pytest`.
+```shell
+createdb nc_plus_one_test
+DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' python db/seed.py
+DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' pytest
+```
