@@ -1,13 +1,14 @@
 import os
+import psycopg2
+
+from dotenv import load_dotenv
 from pathlib import Path
 
-import psycopg2
-from dotenv import load_dotenv
+BASE_DIR = Path(__file__).resolve().parent
 
+load_dotenv(BASE_DIR / ".env")
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
-required_settings = ("PGDATABASE", "PGUSER", "PGPASSWORD", "PGHOST")
+required_settings = ("PGDATABASE", "PGUSER", "PGPASSWORD", "PGHOST", "PGPORT")
 missing_settings = [
     setting for setting in required_settings if not os.getenv(setting)]
 
@@ -16,7 +17,7 @@ if missing_settings:
         "Missing database settings in .env: " + ", ".join(missing_settings)
     )
 
-connection = psycopg2.connect(
+conn = psycopg2.connect(
     dbname=os.environ["PGDATABASE"],
     user=os.environ["PGUSER"],
     password=os.environ["PGPASSWORD"],
