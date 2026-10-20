@@ -37,7 +37,8 @@ A REST API for an events platform. It allows users to register, browse events, R
     psql -d nc_plus_one -f db/setup.sql
     ```
 
-7. Run the seed function
+7. Connect to the database and run the seed function
     ```shell
+    python db/connection.py
     python db/seed.py
     ```
