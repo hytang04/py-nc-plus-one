@@ -1,6 +1,6 @@
 import json
 
-from connection import conn
+from connection import get_connection
 from psycopg2.extensions import connection, cursor
 from psycopg2.extras import execute_values
 
@@ -59,7 +59,7 @@ def create_venues_table(conn: connection, cur: cursor):
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             address TEXT,
-            capacity INT
+            capacity INTEGER
         );
         """
     )
@@ -75,8 +75,8 @@ def create_events_table(conn: connection, cur: cursor):
             description VARCHAR(255),
             starts_at TIMESTAMPTZ NOT NULL,
             ends_at TIMESTAMPTZ NOT NULL,
-            organiser_id INT REFERENCES users(id),
-            venue_id INT REFERENCES venues(id),
+            organiser_id INTEGER REFERENCES users(id),
+            venue_id INTEGER REFERENCES venues(id),
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
@@ -89,8 +89,8 @@ def create_rsvps_table(conn: connection, cur: cursor):
         """
         CREATE TABLE rsvps (
             id SERIAL PRIMARY KEY,
-            attendee_id INT REFERENCES users(id),
-            event_id INT REFERENCES events(id),
+            attendee_id INTEGER REFERENCES users(id),
+            event_id INTEGER REFERENCES events(id),
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
@@ -198,4 +198,4 @@ def seed(conn: connection):
 
 
 if __name__ == "__main__":
-    seed(conn)
+    seed(get_connection())
