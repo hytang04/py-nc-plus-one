@@ -17,10 +17,12 @@ if missing_settings:
         "Missing database settings in .env: " + ", ".join(missing_settings)
     )
 
-conn = psycopg2.connect(
-    dbname=os.environ["PGDATABASE"],
-    user=os.environ["PGUSER"],
-    password=os.environ["PGPASSWORD"],
-    host=os.environ["PGHOST"],
-    port=os.environ["PGPORT"]
-)
+
+def get_connection():
+    return psycopg2.connect(
+        dbname=os.environ["PGDATABASE"],
+        user=os.environ["PGUSER"],
+        password=os.environ["PGPASSWORD"],
+        host=os.environ["PGHOST"],
+        port=os.environ["PGPORT"]
+    )
