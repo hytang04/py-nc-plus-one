@@ -44,7 +44,8 @@ def list_all_events() -> dict[str, list[EventList]]:
         SELECT e.id, e.title, e.starts_at, e.ends_at, v.name
         FROM events e
         LEFT JOIN venues v
-        ON e.venue_id = v.id;
+        ON e.venue_id = v.id
+        ORDER BY e.id;
         """
     )
     rows = cur.fetchall()
