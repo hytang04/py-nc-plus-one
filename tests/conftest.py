@@ -1,14 +1,8 @@
-import os
-import sys
-
 import pytest
 
 from db.connection import get_connection
 from fastapi.testclient import TestClient
 from main import app
-
-# Add parent directory of current directory to start of module search path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 @pytest.fixture
