@@ -28,4 +28,4 @@ def test_list_events_returns_correct_schema(client):
         assert isinstance(event["title"], str)
         assert isinstance(event["starts_at"], str)
         assert isinstance(event["ends_at"], str)
-        assert isinstance(event["location"], Optional[str])
+        assert isinstance(event["location"], str)
