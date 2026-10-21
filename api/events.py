@@ -72,6 +72,12 @@ def get_event_by_id(event_id: int) -> dict[str, EventSingle]:
 
     The response body is a dictionary with a single key `event` and its value an `EventSingle` object.
     """
+    if event_id < 1:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST",
+                    "message": f"{event_id} is not a valid integer"}
+        )
     conn = get_connection()
     cur = conn.cursor()
 

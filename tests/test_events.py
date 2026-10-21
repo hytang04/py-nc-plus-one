@@ -73,3 +73,9 @@ def test_get_event_by_id_not_found_returns_404(client):
     response = client.get("/events/99999")
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_get_event_by_id_invalid_integer_returns_400(client):
+    response = client.get("/events/-4")
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
