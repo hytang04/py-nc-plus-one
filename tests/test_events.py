@@ -32,7 +32,7 @@ def test_list_all_events_returns_correct_schema(client):
 
 
 def test_get_event_by_id_returns_correct_event(client, sample_event):
-    response = client.get("/events/{sample_event}")
+    response = client.get(f"/events/{sample_event}")
 
     assert response.status_code == 200
     event_data = response.json()
@@ -40,7 +40,7 @@ def test_get_event_by_id_returns_correct_event(client, sample_event):
 
 
 def test_get_event_by_id_returns_correct_shape(client, sample_event):
-    response = client.get("/events/{sample_event}")
+    response = client.get(f"/events/{sample_event}")
 
     assert response.status_code == 200
     event_data = response.json()
@@ -50,7 +50,7 @@ def test_get_event_by_id_returns_correct_shape(client, sample_event):
 
 
 def test_get_event_by_id_returns_correct_schema(client):
-    response = client.get("/events")
+    response = client.get("/events/1")
     event_data = response.json()
 
     expected_keys = {"id", "title", "description", "starts_at",
@@ -67,3 +67,9 @@ def test_get_event_by_id_returns_correct_schema(client):
     assert isinstance(event["address"], Optional[str])
     assert isinstance(event["capacity"], int)
     assert isinstance(event["created_at"], str)
+
+
+def test_get_event_by_id_not_found_returns_404(client):
+    response = client.get("/events/99999")
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
