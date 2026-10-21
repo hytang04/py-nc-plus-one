@@ -2,6 +2,11 @@
 
 A REST API for an events platform. It allows users to register, browse events, RSVP, and manage their attendance. Organisers will be able to create and manage events, and view statistics about their audience.
 
+## Requirements
+- Python
+- PostgreSQL
+- Git
+
 ## Setup
 1. Clone the repository:
     ```shell
