@@ -18,7 +18,12 @@ class Event(BaseModel):
 
 
 @router.get("", status_code=200, response_model=dict[str, list[Event]])
-def list_events():
+def list_events() -> dict:
+    """
+    Return all events, ordered by event ID.
+
+    The response body is a dictionary with a single key `events` and its value a list of `Event`s.
+    """
     conn = get_connection()
     cur = conn.cursor()
 

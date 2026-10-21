@@ -18,6 +18,7 @@ def client():
 
 @pytest.fixture
 def sample_event():
+    """Create a single event and delete it safely during a test's lifespan."""
     conn = get_connection()
     cursor = conn.cursor()
 
