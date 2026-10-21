@@ -52,7 +52,7 @@ A REST API for an events platform. It allows users to register, browse events, R
 
 8. Run the server:
     ```shell
-    python -m uvicorn main:app --reload
+    uvicorn main:app --reload
     ```
 
 ### Testing
