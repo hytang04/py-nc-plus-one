@@ -18,7 +18,7 @@ class EventList(BaseModel):
 
 
 @router.get("", status_code=200, response_model=dict[str, list[EventList]])
-def list_events() -> dict[str, list[EventList]]:
+def list_all_events() -> dict[str, list[EventList]]:
     """
     Return all events, ordered by event ID.
 
