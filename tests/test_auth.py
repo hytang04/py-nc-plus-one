@@ -95,7 +95,9 @@ def test_register_returns_created_user_without_password(client, make_register):
                            json=make_register)
 
     assert response.status_code == 201
-    user = response.json()
+
+    assert set(response.json()) == {"user"}
+    user = response.json()["user"]
     assert set(user) == {"id", "name", "email", "created_at"}
     assert user["name"] == make_register["name"]
     assert user["email"] == make_register["email"]

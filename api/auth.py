@@ -112,7 +112,7 @@ def login(request: LoginRequest):
     )
 
 
-@router.post("/register", status_code=201, response_model=RegisterResponse)
+@router.post("/register", status_code=201, response_model=dict[str, RegisterResponse])
 def register(request: RegisterRequest):
     name, email, password = request.name, request.email, request.password
     if any(field is None or field == "" for field in (name, email, password)):
@@ -149,8 +149,10 @@ def register(request: RegisterRequest):
     conn.close()
 
     return {
-        "id": row[0],
-        "name": row[1],
-        "email": row[2],
-        "created_at": row[3].isoformat()
+        "user": {
+            "id": row[0],
+            "name": row[1],
+            "email": row[2],
+            "created_at": row[3].isoformat()
+        }
     }
