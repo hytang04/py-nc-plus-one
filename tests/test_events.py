@@ -5,7 +5,7 @@ from typing import Optional
 
 
 def test_list_all_events_returns_correct_shape(client, sample_event):
-    response = client.get("/events")
+    response = client.get("/api/events")
 
     assert response.status_code == 200
     event_data = response.json()
@@ -17,7 +17,7 @@ def test_list_all_events_returns_correct_shape(client, sample_event):
 
 
 def test_list_all_events_returns_correct_schema(client):
-    response = client.get("/events")
+    response = client.get("/api/events")
     data = response.json()
 
     expected_keys = {"id", "title", "starts_at", "ends_at", "location"}
@@ -32,7 +32,7 @@ def test_list_all_events_returns_correct_schema(client):
 
 
 def test_get_event_by_id_returns_correct_event(client, sample_event):
-    response = client.get(f"/events/{sample_event}")
+    response = client.get(f"/api/events/{sample_event}")
 
     assert response.status_code == 200
     event_data = response.json()
@@ -40,7 +40,7 @@ def test_get_event_by_id_returns_correct_event(client, sample_event):
 
 
 def test_get_event_by_id_returns_correct_shape(client, sample_event):
-    response = client.get(f"/events/{sample_event}")
+    response = client.get(f"/api/events/{sample_event}")
 
     assert response.status_code == 200
     event_data = response.json()
@@ -50,7 +50,7 @@ def test_get_event_by_id_returns_correct_shape(client, sample_event):
 
 
 def test_get_event_by_id_returns_correct_schema(client):
-    response = client.get("/events/1")
+    response = client.get("/api/events/1")
     event_data = response.json()
 
     expected_keys = {"id", "title", "description", "starts_at",
@@ -70,12 +70,12 @@ def test_get_event_by_id_returns_correct_schema(client):
 
 
 def test_get_event_by_id_not_found_returns_404(client):
-    response = client.get("/events/99999")
+    response = client.get("/api/events/99999")
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
 def test_get_event_by_id_invalid_integer_returns_400(client):
-    response = client.get("/events/-4")
+    response = client.get("/api/events/-4")
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "BAD_REQUEST"
