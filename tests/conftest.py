@@ -34,6 +34,7 @@ def sample_event():
     conn.commit()
     yield event_id
 
+    cursor.execute("DELETE FROM rsvps WHERE event_id = %s", (event_id,))
     cursor.execute("DELETE FROM events WHERE id = %s", (event_id,))
     conn.commit()
 

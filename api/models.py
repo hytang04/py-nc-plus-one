@@ -43,3 +43,10 @@ class RegisterResponse(BaseModel):
     name: str
     email: str
     created_at: str
+
+
+class RSVP(BaseModel):
+    id: int
+    attendee_id: int
+    event_id: int
+    created_at: str

@@ -56,11 +56,9 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
 
         if user_id is None:
             raise credentials_exception
-    # Catch expired or malformed tokens
-    except (PyJWTError, ValueError):
-        raise credentials_exception
-    else:
         return int(user_id)
+    except (PyJWTError, KeyError, TypeError, ValueError):
+        raise credentials_exception
 
 
 @router.post("/login", status_code=200, response_model=LoginResponse)

@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-
-from api.models import EventList, EventSingle
+from api.auth import get_current_user_id
+from api.models import EventList, EventSingle, RSVP
 from db.connection import get_connection
 
 
@@ -92,5 +92,75 @@ def get_event_by_id(event_id: int) -> dict[str, EventSingle]:
             "address": row[6],
             "capacity": row[7],
             "created_at": row[8].isoformat()
+        }
+    }
+
+
+@router.post("/{event_id}/rsvp", status_code=201, response_model=dict[str, RSVP])
+def rsvp_user_to_event(
+    event_id: int, user_id: int = Depends(get_current_user_id)
+) -> dict[str, RSVP]:
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # Check that event exists
+    cur.execute(
+        "SELECT id FROM events WHERE id = %s",
+        (event_id,)
+    )
+    event = cur.fetchone()
+    if event is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Event not found"
+            }
+        )
+
+    # Check if user has already RSVPed event
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM rsvps
+            WHERE attendee_id = %s AND event_id = %s
+        )
+        """,
+        (user_id, event_id)
+    )
+    already_rsvped = cur.fetchone()[0]
+    if already_rsvped:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "User has already RSVPed to this event"
+            }
+        )
+
+    cur.execute(
+        """
+        INSERT INTO rsvps (attendee_id, event_id)
+        VALUES (%s, %s)
+        RETURNING id, attendee_id, event_id, created_at
+        """,
+        (user_id, event_id)
+    )
+    row = cur.fetchone()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {
+        "rsvp": {
+            "id": row[0],
+            "attendee_id": row[1],
+            "event_id": row[2],
+            "created_at": row[3].isoformat()
         }
     }

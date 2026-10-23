@@ -1,5 +1,6 @@
 import pytest
 
+from api.auth import create_access_token
 from db.connection import get_connection
 from typing import Optional
 
@@ -79,3 +80,58 @@ def test_get_event_by_id_invalid_integer_returns_400(client):
     response = client.get("/api/events/-4")
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+def test_rsvp_user_to_event_returns_created_rsvp(client, sample_event):
+    token = create_access_token(1)
+
+    response = client.post(
+        f"/api/events/{sample_event}/rsvp",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    rsvp = response.json()["rsvp"]
+    assert set(rsvp) == {"id", "attendee_id", "event_id", "created_at"}
+    assert rsvp["attendee_id"] == 1
+    assert rsvp["event_id"] == sample_event
+    assert isinstance(rsvp["created_at"], str)
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [None, {"Authorization": "Bearer invalid-token"}],
+    ids=["missing-token", "invalid-token"],
+)
+def test_rsvp_user_to_event_without_valid_token_returns_401(client, sample_event, headers):
+    response = client.post(
+        f"/api/events/{sample_event}/rsvp",
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+
+
+def test_rsvp_user_to_event_nonexistent_event_returns_404(client):
+    token = create_access_token(1)
+
+    response = client.post(
+        "/api/events/99999/rsvp",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_rsvp_event_twice_returns_409_on_duplicate(client, sample_event):
+    token = create_access_token(1)
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"/api/events/{sample_event}/rsvp"
+
+    first_response = client.post(url, headers=headers)
+    duplicate_response = client.post(url, headers=headers)
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["error"]["code"] == "CONFLICT"
