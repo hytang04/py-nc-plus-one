@@ -44,10 +44,10 @@ A REST API for an events platform. It allows users to register, browse events, R
     psql -d nc_plus_one -f db/setup.sql
     ```
 
-7. Connect to the database and run the seed function
+7. Connect to and seed the database:
     ```shell
-    python db/connection.py
-    python db/seed.py
+    python -m db.connection
+    python -m db.seed
     ```
 
 8. Run the server:
@@ -59,6 +59,6 @@ A REST API for an events platform. It allows users to register, browse events, R
 To test, create a separate test database `nc_plus_one_test` and point the new `DATABASE_URL` at it when seeding the database and running `pytest`.
 ```shell
 createdb nc_plus_one_test
-DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' python db/seed.py
+DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' python -m db.seed
 DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' pytest
 ```

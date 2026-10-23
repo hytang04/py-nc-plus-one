@@ -1,0 +1,112 @@
+import jwt
+import os
+
+from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from jwt import PyJWTError
+from passlib.context import CryptContext
+
+from api.models import LoginRequest, LoginResponse
+from db.connection import get_connection
+
+load_dotenv()
+
+JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRY_MINS = 30
+
+password_context = CryptContext(
+    schemes=["bcrypt"]
+)
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def hash_password(password: str) -> str:
+    return password_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return password_context.verify(plain_password, hashed_password)
+
+
+def create_access_token(user_id: int) -> str:
+    payload = {
+        "sub": str(user_id),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRY_MINS)
+    }
+    token = jwt.encode(payload, JWT_SECRET, JWT_ALGORITHM)
+    return token
+
+
+def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail={"code": "UNAUTHORIZED",
+                "message": "Could not validate credentials"}
+    )
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload["sub"]
+
+        if user_id is None:
+            raise credentials_exception
+    # Catch expired or malformed tokens
+    except (PyJWTError, ValueError):
+        raise credentials_exception
+    else:
+        return int(user_id)
+
+
+@router.post("/login", status_code=200, response_model=LoginResponse)
+def login(request: LoginRequest):
+    if request.email is None or request.email == "":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST",
+                    "message": "Missing email field"}
+        )
+    if request.password is None or request.password == "":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST",
+                    "message": "Missing password field"}
+        )
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM users WHERE email = %s",
+        (request.email,)
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED",
+                    "message": "User not found"}
+        )
+
+    user_id = row[0]
+
+    cur.execute(
+        "SELECT password FROM users WHERE id = %s",
+        (user_id,)
+    )
+    hashed_password = cur.fetchone()[0]
+
+    if verify_password(request.password, hashed_password):
+        token = create_access_token(user_id)
+
+        return {"access_token": token,
+                "token_type": "bearer"}
+
+    raise HTTPException(
+        status_code=401,
+        detail={"code": "UNAUTHORIZED",
+                "message": "User not found"}
+    )

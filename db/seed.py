@@ -1,9 +1,10 @@
 import json
 
-from argon2 import PasswordHasher
-from connection import get_connection
 from psycopg2.extensions import connection, cursor
 from psycopg2.extras import execute_values
+
+from api.auth import hash_password
+from db.connection import get_connection
 
 USER_DATA_PATH = "db/data/users.json"
 VENUE_DATA_PATH = "db/data/venues.json"
@@ -106,18 +107,11 @@ def create_tables(conn: connection, cur: cursor):
     create_rsvps_table(conn, cur)
 
 
-password_hasher = PasswordHasher()
-
-
-def hash_password(password: str) -> str:
-    return password_hasher.hash(password)
-
-
 def insert_user_data(conn: connection, cur: cursor):
     with open(USER_DATA_PATH, "r") as f:
         user_data = json.load(f)
     user_records = [
-        (row["name"], row["email"], hash_password(row["password"])) for row in user_data
+        (row["email"], hash_password(row["password"]), row["name"]) for row in user_data
     ]
 
     execute_values(

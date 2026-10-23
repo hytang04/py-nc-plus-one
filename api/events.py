@@ -1,32 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Optional
 
 
+from api.models import EventList, EventSingle
 from db.connection import get_connection
 
 
-router = APIRouter(prefix="/events", tags=["events"])
-
-
-class EventList(BaseModel):
-    id: int
-    title: str
-    starts_at: str
-    ends_at: str
-    location: str
-
-
-class EventSingle(BaseModel):
-    id: int
-    title: str
-    description: Optional[str]
-    starts_at: str
-    ends_at: str
-    location: str
-    address: Optional[str]
-    capacity: int
-    created_at: str
+router = APIRouter(prefix="/api/events", tags=["events"])
 
 
 @router.get("", status_code=200, response_model=dict[str, list[EventList]])
