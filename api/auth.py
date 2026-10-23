@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt import PyJWTError
 from passlib.context import CryptContext
 
-from api.models import LoginRequest, LoginResponse
+from api.models import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
 from db.connection import get_connection
 
 load_dotenv()
@@ -65,18 +65,14 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
 
 @router.post("/login", status_code=200, response_model=LoginResponse)
 def login(request: LoginRequest):
-    if request.email is None or request.email == "":
+    email, password = request.email, request.password
+    if any(field is None or field == "" for field in (email, password)):
         raise HTTPException(
             status_code=400,
             detail={"code": "BAD_REQUEST",
-                    "message": "Missing email field"}
+                    "message": "Email and password fields are required"}
         )
-    if request.password is None or request.password == "":
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "BAD_REQUEST",
-                    "message": "Missing password field"}
-        )
+
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -85,6 +81,8 @@ def login(request: LoginRequest):
     )
     row = cur.fetchone()
     if row is None:
+        cur.close()
+        conn.close()
         raise HTTPException(
             status_code=401,
             detail={"code": "UNAUTHORIZED",
@@ -98,6 +96,8 @@ def login(request: LoginRequest):
         (user_id,)
     )
     hashed_password = cur.fetchone()[0]
+    cur.close()
+    conn.close()
 
     if verify_password(request.password, hashed_password):
         token = create_access_token(user_id)
@@ -110,3 +110,47 @@ def login(request: LoginRequest):
         detail={"code": "UNAUTHORIZED",
                 "message": "User not found"}
     )
+
+
+@router.post("/register", status_code=201, response_model=RegisterResponse)
+def register(request: RegisterRequest):
+    name, email, password = request.name, request.email, request.password
+    if any(field is None or field == "" for field in (name, email, password)):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST",
+                    "message": "Name, email, and password fields are required"}
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    hashed_password = hash_password(password)
+    cur.execute(
+        """
+        INSERT INTO users (email, password, name)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (email) DO NOTHING
+        RETURNING id, name, email, created_at
+        """,
+        (email, hashed_password, name)
+    )
+    row = cur.fetchone()
+    if row is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "CONFLICT",
+                    "message": "Email already registered"}
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {
+        "id": row[0],
+        "name": row[1],
+        "email": row[2],
+        "created_at": row[3].isoformat()
+    }

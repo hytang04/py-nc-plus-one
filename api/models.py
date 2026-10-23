@@ -30,3 +30,16 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class RegisterRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+
+class RegisterResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    created_at: str
