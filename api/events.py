@@ -164,3 +164,33 @@ def rsvp_user_to_event(
             "created_at": row[3].isoformat()
         }
     }
+
+
+@router.delete("/{event_id}/rsvp/me", status_code=204)
+def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) -> None:
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        DELETE FROM rsvps
+        WHERE attendee_id = %s AND event_id = %s
+        RETURNING id
+        """,
+        (user_id, event_id)
+    )
+    deleted_rsvp = cur.fetchone()
+    if deleted_rsvp is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "No RSVP exists for this user on this event"
+            }
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()

@@ -135,3 +135,87 @@ def test_rsvp_event_twice_returns_409_on_duplicate(client, sample_event):
     assert first_response.status_code == 201
     assert duplicate_response.status_code == 409
     assert duplicate_response.json()["error"]["code"] == "CONFLICT"
+
+
+def test_cancel_own_rsvp_returns_204(client, sample_event):
+    token = create_access_token(1)
+    headers = {"Authorization": f"Bearer {token}"}
+    rsvp_response = client.post(
+        f"/api/events/{sample_event}/rsvp",
+        headers=headers,
+    )
+    assert rsvp_response.status_code == 201
+
+    response = client.delete(
+        f"/api/events/{sample_event}/rsvp/me",
+        headers=headers,
+    )
+
+    assert response.status_code == 204
+    assert response.content == b""
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT EXISTS (SELECT 1 FROM rsvps WHERE attendee_id = %s AND event_id = %s)",
+        (1, sample_event),
+    )
+    assert cur.fetchone()[0] is False
+    cur.close()
+    conn.close()
+
+
+def test_cancel_rsvp_for_another_user_does_not_delete_their_rsvp(
+    client, sample_event
+):
+    owner_token = create_access_token(2)
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    rsvp_response = client.post(
+        f"/api/events/{sample_event}/rsvp",
+        headers=owner_headers,
+    )
+    assert rsvp_response.status_code == 201
+
+    response = client.delete(
+        f"/api/events/{sample_event}/rsvp/me",
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT EXISTS (SELECT 1 FROM rsvps WHERE attendee_id = %s AND event_id = %s)",
+        (2, sample_event),
+    )
+    assert cur.fetchone()[0] is True
+    cur.close()
+    conn.close()
+
+
+def test_cancel_missing_rsvp_returns_404(client, sample_event):
+    response = client.delete(
+        f"/api/events/{sample_event}/rsvp/me",
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [None, {"Authorization": "Bearer invalid-token"}],
+    ids=["missing-token", "invalid-token"],
+)
+def test_cancel_rsvp_without_valid_token_returns_401(
+    client, sample_event, headers
+):
+    response = client.delete(
+        f"/api/events/{sample_event}/rsvp/me",
+        headers=headers,
+    )
+
+    assert response.status_code == 401
