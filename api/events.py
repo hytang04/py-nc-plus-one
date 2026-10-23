@@ -1,15 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.auth import get_current_user_id
-from api.models import EventList, EventSingle, RSVP
+from api.models import (
+    EventGetListResponse, EventGetSingleResponse,
+    EventPostRequest, EventPostResponse, RSVP
+)
 from db.connection import get_connection
 
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 
-@router.get("", status_code=200, response_model=dict[str, list[EventList]])
-def list_all_events() -> dict[str, list[EventList]]:
+@router.get("", status_code=200, response_model=dict[str, list[EventGetListResponse]])
+def list_all_events() -> dict[str, list[EventGetListResponse]]:
     """
     Return all events, ordered by event ID.
 
@@ -44,8 +47,8 @@ def list_all_events() -> dict[str, list[EventList]]:
     }
 
 
-@router.get("/{event_id}", status_code=200, response_model=dict[str, EventSingle])
-def get_event_by_id(event_id: int) -> dict[str, EventSingle]:
+@router.get("/{event_id}", status_code=200, response_model=dict[str, EventGetSingleResponse])
+def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
     """
     Return a single event by its event ID.
 
@@ -194,3 +197,54 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
     conn.commit()
     cur.close()
     conn.close()
+
+
+@router.post("", status_code=201, response_model=dict[str, EventPostResponse])
+def create_event(
+    request: EventPostRequest,
+    user_id: int = Depends(get_current_user_id)
+) -> dict[str, EventPostResponse]:
+    title, description, starts_at, ends_at, venue_id = \
+        request.title, request.description, request.starts_at, \
+        request.ends_at, request.venue_id
+
+    # Don't need to check description as it can be empty
+    if not title.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "BAD_REQUEST",
+                    "message": "Title is required"}
+        )
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO events (
+            title, description, starts_at,
+            ends_at, organiser_id, venue_id
+        ) VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING
+            id, title, description, starts_at, ends_at,
+            venue_id, organiser_id, created_at
+        """,
+        (title, description, starts_at, ends_at, user_id, venue_id)
+    )
+    row = cur.fetchone()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {
+        "event": {
+            "id": row[0],
+            "title": row[1],
+            "description": row[2],
+            "starts_at": row[3].isoformat(),
+            "ends_at": row[4].isoformat(),
+            "venue_id": row[5],
+            "organiser_id": row[6],
+            "created_at": row[7].isoformat()
+        }
+    }

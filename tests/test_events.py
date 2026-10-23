@@ -1,8 +1,29 @@
 import pytest
 
+from datetime import datetime
+from typing import Optional
+
 from api.auth import create_access_token
 from db.connection import get_connection
-from typing import Optional
+
+
+@pytest.fixture
+def event_creation_payload():
+    payload = {
+        "title": f"Test Event",
+        "description": "Created during an integration test",
+        "starts_at": "2027-10-04T18:30:00Z",
+        "ends_at": "2027-10-04T21:30:00Z",
+        "venue_id": 1,
+    }
+    yield payload
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM events WHERE title = %s", (payload["title"],))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def test_list_all_events_returns_correct_shape(client, sample_event):
@@ -219,3 +240,144 @@ def test_cancel_rsvp_without_valid_token_returns_401(
     )
 
     assert response.status_code == 401
+
+
+def test_create_event_returns_created_event_and_uses_organiser_token(
+    client, event_creation_payload
+):
+    token = create_access_token(2)
+    response = client.post(
+        "/api/events",
+        json=event_creation_payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    event = response.json()["event"]
+    assert set(event) == {
+        "id", "title", "description", "starts_at", "ends_at",
+        "venue_id", "organiser_id", "created_at",
+    }
+    assert event["title"] == event_creation_payload["title"]
+    assert event["organiser_id"] == 2
+    assert event["venue_id"] == event_creation_payload["venue_id"]
+    assert datetime.fromisoformat(event["starts_at"]) == datetime.fromisoformat(
+        "2027-10-04T18:30:00+00:00"
+    )
+    assert datetime.fromisoformat(event["ends_at"]) == datetime.fromisoformat(
+        "2027-10-04T21:30:00+00:00"
+    )
+
+
+def test_create_event_rejects_organiser_id_in_request(
+    client, event_creation_payload
+):
+    # Set union event payload with organiser_id
+    payload = event_creation_payload | {"organiser_id": 1}
+    response = client.post(
+        "/api/events",
+        json=payload,
+        headers={"Authorization": f"Bearer {create_access_token(2)}"},
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [None, {"Authorization": "Bearer invalid-token"}],
+    ids=["missing-token", "invalid-token"],
+)
+def test_create_event_without_valid_token_returns_401(
+    client, event_creation_payload, headers
+):
+    response = client.post(
+        "/api/events",
+        json=event_creation_payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    ["title", "starts_at", "ends_at", "venue_id"],
+)
+def test_create_event_missing_required_field_returns_400(
+    client, event_creation_payload, missing_field
+):
+    payload = event_creation_payload.copy()
+    payload.pop(missing_field)
+
+    response = client.post(
+        "/api/events",
+        json=payload,
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+@pytest.mark.parametrize("date_field", ["starts_at", "ends_at"])
+def test_create_event_invalid_date_returns_400(
+    client, event_creation_payload, date_field
+):
+    payload = event_creation_payload.copy()
+    payload[date_field] = "not-an-iso-date"
+
+    response = client.post(
+        "/api/events",
+        json=payload,
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+def test_create_event_start_after_end_returns_400(
+    client, event_creation_payload
+):
+    payload = event_creation_payload.copy()
+    payload["starts_at"] = "2027-10-04T21:30:00Z"
+    payload["ends_at"] = "2027-10-04T18:30:00Z"
+
+    response = client.post(
+        "/api/events",
+        json=payload,
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+def test_create_event_equal_start_and_end_is_valid(
+    client, event_creation_payload
+):
+    payload = event_creation_payload.copy()
+    payload["ends_at"] = payload["starts_at"]
+
+    response = client.post(
+        "/api/events",
+        json=payload,
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 201
+
+
+def test_create_event_empty_title_returns_400(client, event_creation_payload):
+    payload = event_creation_payload.copy()
+    payload["title"] = " "
+
+    response = client.post(
+        "/api/events",
+        json=payload,
+        headers={"Authorization": f"Bearer {create_access_token(1)}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
