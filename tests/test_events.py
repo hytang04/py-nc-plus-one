@@ -82,7 +82,7 @@ def test_get_event_by_id_invalid_integer_returns_400(client):
     assert response.json()["error"]["code"] == "BAD_REQUEST"
 
 
-def test_rsvp_user_to_event_returns_created_rsvp(client, sample_event):
+def test_rsvp_event_returns_created_rsvp(client, sample_event):
     token = create_access_token(1)
 
     response = client.post(
@@ -112,7 +112,7 @@ def test_rsvp_user_to_event_without_valid_token_returns_401(client, sample_event
     assert response.status_code == 401
 
 
-def test_rsvp_user_to_event_nonexistent_event_returns_404(client):
+def test_rsvp_event_nonexistent_event_returns_404(client):
     token = create_access_token(1)
 
     response = client.post(

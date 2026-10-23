@@ -97,7 +97,7 @@ def get_event_by_id(event_id: int) -> dict[str, EventSingle]:
 
 
 @router.post("/{event_id}/rsvp", status_code=201, response_model=dict[str, RSVP])
-def rsvp_user_to_event(
+def rsvp_event(
     event_id: int, user_id: int = Depends(get_current_user_id)
 ) -> dict[str, RSVP]:
     conn = get_connection()
