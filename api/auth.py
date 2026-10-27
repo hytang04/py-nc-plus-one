@@ -63,7 +63,7 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
 
 
 @router.post("/login", status_code=200, response_model=LoginResponse)
-def login(request: LoginRequest):
+def login(request: LoginRequest) -> LoginResponse:
     email, password = request.email, request.password
     if any(field is None or field.strip() == "" for field in (email, password)):
         raise HTTPException(
@@ -109,7 +109,7 @@ def login(request: LoginRequest):
     if verify_password(request.password, hashed_password):
         token = create_access_token(user_id)
 
-        return {"access_token": token, "token_type": "bearer"}
+        return LoginResponse(access_token=token, token_type="bearer")
 
     raise HTTPException(
         status_code=401, detail={"code": "UNAUTHORIZED", "message": "User not found"}
@@ -117,7 +117,12 @@ def login(request: LoginRequest):
 
 
 @router.post("/register", status_code=201, response_model=dict[str, RegisterResponse])
-def register(request: RegisterRequest):
+def register(request: RegisterRequest) -> dict[str, RegisterResponse]:
+    """
+    Register a new user account.
+
+    Returns: dictionary
+    """
     name, email, password = request.name, request.email, request.password
     if any(field is None or field.strip() == "" for field in (name, email, password)):
         raise HTTPException(
@@ -154,10 +159,10 @@ def register(request: RegisterRequest):
     conn.close()
 
     return {
-        "user": {
-            "id": row[0],
-            "name": row[1],
-            "email": row[2],
-            "created_at": row[3].isoformat(),
-        }
+        "user": RegisterResponse(
+            id=row[0],
+            name=row[1],
+            email=row[2],
+            created_at=row[3].isoformat(),
+        )
     }
