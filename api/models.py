@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from typing import Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
@@ -16,11 +15,11 @@ class EventGetListResponse(BaseModel):
 class EventGetSingleResponse(BaseModel):
     id: int
     title: str
-    description: Optional[str]
+    description: str | None
     starts_at: str
     ends_at: str
     location: str
-    address: Optional[str]
+    address: str | None
     capacity: int
     created_at: str
 
@@ -29,7 +28,7 @@ class EventPostRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     starts_at: datetime
     ends_at: datetime
     venue_id: int
@@ -74,7 +73,7 @@ class EventPostRequest(BaseModel):
 class EventPostResponse(BaseModel):
     id: int
     title: str
-    description: Optional[str]
+    description: str | None
     starts_at: str
     ends_at: str
     venue_id: int
@@ -93,9 +92,9 @@ class LoginResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    password: Optional[str] = None
+    name: str
+    email: str
+    password: str
 
 
 class RegisterResponse(BaseModel):

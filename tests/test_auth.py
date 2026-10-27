@@ -111,9 +111,12 @@ def test_register_returns_created_user_without_password(client, make_register):
     cur.execute(
         "SELECT password FROM users WHERE email = %s", (make_register["email"],)
     )
-    stored_password = cur.fetchone()[0]
+    row = cur.fetchone()
     cur.close()
     conn.close()
+
+    assert row is not None, "Registered user was not found in the database"
+    stored_password = row[0]
 
     assert stored_password != make_register["password"]
     assert verify_password(make_register["password"], stored_password)

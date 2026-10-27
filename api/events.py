@@ -38,13 +38,13 @@ def list_all_events() -> dict[str, list[EventGetListResponse]]:
 
     return {
         "events": [
-            {
-                "id": r[0],
-                "title": r[1],
-                "starts_at": r[2].isoformat(),
-                "ends_at": r[3].isoformat(),
-                "location": r[4],
-            }
+            EventGetListResponse(
+                id=r[0],
+                title=r[1],
+                starts_at=r[2].isoformat(),
+                ends_at=r[3].isoformat(),
+                location=r[4],
+            )
             for r in rows
         ]
     }
@@ -91,17 +91,17 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
         )
 
     return {
-        "event": {
-            "id": row[0],
-            "title": row[1],
-            "description": row[2],
-            "starts_at": row[3].isoformat(),
-            "ends_at": row[4].isoformat(),
-            "location": row[5],
-            "address": row[6],
-            "capacity": row[7],
-            "created_at": row[8].isoformat(),
-        }
+        "event": EventGetSingleResponse(
+            id=row[0],
+            title=row[1],
+            description=row[2],
+            starts_at=row[3].isoformat(),
+            ends_at=row[4].isoformat(),
+            location=row[5],
+            address=row[6],
+            capacity=row[7],
+            created_at=row[8].isoformat(),
+        )
     }
 
 
@@ -125,14 +125,13 @@ def rsvp_event(
     # Check if user has already RSVPed event
     cur.execute(
         """
-        SELECT EXISTS (
-            SELECT 1 FROM rsvps
-            WHERE attendee_id = %s AND event_id = %s
-        )
+        SELECT 1 FROM rsvps
+        WHERE attendee_id = %s AND event_id = %s
+        LIMIT 1
         """,
         (user_id, event_id),
     )
-    already_rsvped = cur.fetchone()[0]
+    already_rsvped = cur.fetchone() is not None
     if already_rsvped:
         cur.close()
         conn.close()
@@ -153,18 +152,23 @@ def rsvp_event(
         (user_id, event_id),
     )
     row = cur.fetchone()
+    if row is None:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise RuntimeError("RSVP insert returned no row")
 
     conn.commit()
     cur.close()
     conn.close()
 
     return {
-        "rsvp": {
-            "id": row[0],
-            "attendee_id": row[1],
-            "event_id": row[2],
-            "created_at": row[3].isoformat(),
-        }
+        "rsvp": RSVP(
+            id=row[0],
+            attendee_id=row[1],
+            event_id=row[2],
+            created_at=row[3].isoformat(),
+        )
     }
 
 
@@ -232,20 +236,25 @@ def create_event(
         (title, description, starts_at, ends_at, user_id, venue_id),
     )
     row = cur.fetchone()
+    if row is None:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise RuntimeError("Event insert returned no row")
 
     conn.commit()
     cur.close()
     conn.close()
 
     return {
-        "event": {
-            "id": row[0],
-            "title": row[1],
-            "description": row[2],
-            "starts_at": row[3].isoformat(),
-            "ends_at": row[4].isoformat(),
-            "venue_id": row[5],
-            "organiser_id": row[6],
-            "created_at": row[7].isoformat(),
-        }
+        "event": EventPostResponse(
+            id=row[0],
+            title=row[1],
+            description=row[2],
+            starts_at=row[3].isoformat(),
+            ends_at=row[4].isoformat(),
+            venue_id=row[5],
+            organiser_id=row[6],
+            created_at=row[7].isoformat(),
+        )
     }

@@ -76,8 +76,10 @@ def login(request: LoginRequest):
 
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("SELECT id FROM users WHERE email = %s", (request.email,))
     row = cur.fetchone()
+
     if row is None:
         cur.close()
         conn.close()
@@ -89,7 +91,18 @@ def login(request: LoginRequest):
     user_id = row[0]
 
     cur.execute("SELECT password FROM users WHERE id = %s", (user_id,))
-    hashed_password = cur.fetchone()[0]
+    row = cur.fetchone()
+
+    if row is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED", "message": "User not found"},
+        )
+
+    hashed_password = row[0]
+
     cur.close()
     conn.close()
 

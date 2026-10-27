@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 import pytest
 
@@ -92,11 +91,11 @@ def test_get_event_by_id_returns_correct_schema(client):
     assert expected_keys == event.keys()
     assert isinstance(event["id"], int)
     assert isinstance(event["title"], str)
-    assert isinstance(event["description"], Optional[str])
+    assert isinstance(event["description"], str | None)
     assert isinstance(event["starts_at"], str)
     assert isinstance(event["ends_at"], str)
     assert isinstance(event["location"], str)
-    assert isinstance(event["address"], Optional[str])
+    assert isinstance(event["address"], str | None)
     assert isinstance(event["capacity"], int)
     assert isinstance(event["created_at"], str)
 
@@ -190,10 +189,12 @@ def test_cancel_own_rsvp_returns_204(client, sample_event):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT EXISTS (SELECT 1 FROM rsvps WHERE attendee_id = %s AND event_id = %s)",
+        "SELECT * FROM rsvps WHERE attendee_id = %s AND event_id = %s",
         (1, sample_event),
     )
-    assert cur.fetchone()[0] is False
+    row = cur.fetchone()
+    assert row is None
+
     cur.close()
     conn.close()
 
@@ -218,10 +219,12 @@ def test_cancel_rsvp_for_another_user_does_not_delete_their_rsvp(client, sample_
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT EXISTS (SELECT 1 FROM rsvps WHERE attendee_id = %s AND event_id = %s)",
+        "SELECT * FROM rsvps WHERE attendee_id = %s AND event_id = %s",
         (2, sample_event),
     )
-    assert cur.fetchone()[0] is True
+    row = cur.fetchone()
+    assert row is not None
+
     cur.close()
     conn.close()
 
