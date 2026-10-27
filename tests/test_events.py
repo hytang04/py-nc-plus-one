@@ -1,7 +1,7 @@
-import pytest
-
 from datetime import datetime
 from typing import Optional
+
+import pytest
 
 from api.auth import create_access_token
 from db.connection import get_connection
@@ -10,7 +10,7 @@ from db.connection import get_connection
 @pytest.fixture
 def event_creation_payload():
     payload = {
-        "title": f"Test Event",
+        "title": "Test Event",
         "description": "Created during an integration test",
         "starts_at": "2027-10-04T18:30:00Z",
         "ends_at": "2027-10-04T21:30:00Z",
@@ -33,9 +33,10 @@ def test_list_all_events_returns_correct_shape(client, sample_event):
     event_data = response.json()
 
     assert isinstance(event_data, dict)
-    assert "events" in event_data.keys()
-    assert [event["id"] for event in event_data
-                 ["events"]] == list(range(1, 11)) + [sample_event]
+    assert "events" in event_data
+    assert [event["id"] for event in event_data["events"]] == list(range(1, 11)) + [
+        sample_event
+    ]
 
 
 def test_list_all_events_returns_correct_schema(client):
@@ -67,7 +68,7 @@ def test_get_event_by_id_returns_correct_shape(client, sample_event):
     assert response.status_code == 200
     event_data = response.json()
     assert isinstance(event_data, dict)
-    assert "event" in event_data.keys()
+    assert "event" in event_data
     assert isinstance(event_data["event"], dict)
 
 
@@ -75,8 +76,17 @@ def test_get_event_by_id_returns_correct_schema(client):
     response = client.get("/api/events/1")
     event_data = response.json()
 
-    expected_keys = {"id", "title", "description", "starts_at",
-                     "ends_at", "location", "address", "capacity", "created_at"}
+    expected_keys = {
+        "id",
+        "title",
+        "description",
+        "starts_at",
+        "ends_at",
+        "location",
+        "address",
+        "capacity",
+        "created_at",
+    }
 
     event = event_data["event"]
     assert expected_keys == event.keys()
@@ -124,7 +134,9 @@ def test_rsvp_event_returns_created_rsvp(client, sample_event):
     [None, {"Authorization": "Bearer invalid-token"}],
     ids=["missing-token", "invalid-token"],
 )
-def test_rsvp_user_to_event_without_valid_token_returns_401(client, sample_event, headers):
+def test_rsvp_user_to_event_without_valid_token_returns_401(
+    client, sample_event, headers
+):
     response = client.post(
         f"/api/events/{sample_event}/rsvp",
         headers=headers,
@@ -186,9 +198,7 @@ def test_cancel_own_rsvp_returns_204(client, sample_event):
     conn.close()
 
 
-def test_cancel_rsvp_for_another_user_does_not_delete_their_rsvp(
-    client, sample_event
-):
+def test_cancel_rsvp_for_another_user_does_not_delete_their_rsvp(client, sample_event):
     owner_token = create_access_token(2)
     owner_headers = {"Authorization": f"Bearer {owner_token}"}
     rsvp_response = client.post(
@@ -231,9 +241,7 @@ def test_cancel_missing_rsvp_returns_404(client, sample_event):
     [None, {"Authorization": "Bearer invalid-token"}],
     ids=["missing-token", "invalid-token"],
 )
-def test_cancel_rsvp_without_valid_token_returns_401(
-    client, sample_event, headers
-):
+def test_cancel_rsvp_without_valid_token_returns_401(client, sample_event, headers):
     response = client.delete(
         f"/api/events/{sample_event}/rsvp/me",
         headers=headers,
@@ -255,8 +263,14 @@ def test_create_event_returns_created_event_and_uses_organiser_token(
     assert response.status_code == 201
     event = response.json()["event"]
     assert set(event) == {
-        "id", "title", "description", "starts_at", "ends_at",
-        "venue_id", "organiser_id", "created_at",
+        "id",
+        "title",
+        "description",
+        "starts_at",
+        "ends_at",
+        "venue_id",
+        "organiser_id",
+        "created_at",
     }
     assert event["title"] == event_creation_payload["title"]
     assert event["organiser_id"] == 2
@@ -269,9 +283,7 @@ def test_create_event_returns_created_event_and_uses_organiser_token(
     )
 
 
-def test_create_event_rejects_organiser_id_in_request(
-    client, event_creation_payload
-):
+def test_create_event_rejects_organiser_id_in_request(client, event_creation_payload):
     # Set union event payload with organiser_id
     payload = event_creation_payload | {"organiser_id": 1}
     response = client.post(
@@ -337,9 +349,7 @@ def test_create_event_invalid_date_returns_400(
     assert response.json()["error"]["code"] == "BAD_REQUEST"
 
 
-def test_create_event_start_after_end_returns_400(
-    client, event_creation_payload
-):
+def test_create_event_start_after_end_returns_400(client, event_creation_payload):
     payload = event_creation_payload.copy()
     payload["starts_at"] = "2027-10-04T21:30:00Z"
     payload["ends_at"] = "2027-10-04T18:30:00Z"
@@ -354,9 +364,7 @@ def test_create_event_start_after_end_returns_400(
     assert response.json()["error"]["code"] == "BAD_REQUEST"
 
 
-def test_create_event_equal_start_and_end_is_valid(
-    client, event_creation_payload
-):
+def test_create_event_equal_start_and_end_is_valid(client, event_creation_payload):
     payload = event_creation_payload.copy()
     payload["ends_at"] = payload["starts_at"]
 

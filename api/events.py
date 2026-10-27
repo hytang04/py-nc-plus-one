@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from api.auth import get_current_user_id
 from api.models import (
-    EventGetListResponse, EventGetSingleResponse,
-    EventPostRequest, EventPostResponse, RSVP
+    RSVP,
+    EventGetListResponse,
+    EventGetSingleResponse,
+    EventPostRequest,
+    EventPostResponse,
 )
 from db.connection import get_connection
-
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -41,13 +43,16 @@ def list_all_events() -> dict[str, list[EventGetListResponse]]:
                 "title": r[1],
                 "starts_at": r[2].isoformat(),
                 "ends_at": r[3].isoformat(),
-                "location": r[4]
-            } for r in rows
+                "location": r[4],
+            }
+            for r in rows
         ]
     }
 
 
-@router.get("/{event_id}", status_code=200, response_model=dict[str, EventGetSingleResponse])
+@router.get(
+    "/{event_id}", status_code=200, response_model=dict[str, EventGetSingleResponse]
+)
 def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
     """
     Return a single event by its event ID.
@@ -57,8 +62,10 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
     if event_id < 1:
         raise HTTPException(
             status_code=400,
-            detail={"code": "BAD_REQUEST",
-                    "message": f"{event_id} is not a valid integer"}
+            detail={
+                "code": "BAD_REQUEST",
+                "message": f"{event_id} is not a valid integer",
+            },
         )
     conn = get_connection()
     cur = conn.cursor()
@@ -72,7 +79,7 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
         ON e.venue_id = v.id
         WHERE e.id = %s;
         """,
-        (event_id,)
+        (event_id,),
     )
     row = cur.fetchone()
     cur.close()
@@ -80,8 +87,7 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
 
     if row is None:
         raise HTTPException(
-            status_code=404,
-            detail={"code": "NOT_FOUND", "message": "Event not found"}
+            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
         )
 
     return {
@@ -94,7 +100,7 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
             "location": row[5],
             "address": row[6],
             "capacity": row[7],
-            "created_at": row[8].isoformat()
+            "created_at": row[8].isoformat(),
         }
     }
 
@@ -107,20 +113,13 @@ def rsvp_event(
     cur = conn.cursor()
 
     # Check that event exists
-    cur.execute(
-        "SELECT id FROM events WHERE id = %s",
-        (event_id,)
-    )
+    cur.execute("SELECT id FROM events WHERE id = %s", (event_id,))
     event = cur.fetchone()
     if event is None:
         cur.close()
         conn.close()
         raise HTTPException(
-            status_code=404,
-            detail={
-                "code": "NOT_FOUND",
-                "message": "Event not found"
-            }
+            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
         )
 
     # Check if user has already RSVPed event
@@ -131,7 +130,7 @@ def rsvp_event(
             WHERE attendee_id = %s AND event_id = %s
         )
         """,
-        (user_id, event_id)
+        (user_id, event_id),
     )
     already_rsvped = cur.fetchone()[0]
     if already_rsvped:
@@ -141,8 +140,8 @@ def rsvp_event(
             status_code=409,
             detail={
                 "code": "CONFLICT",
-                "message": "User has already RSVPed to this event"
-            }
+                "message": "User has already RSVPed to this event",
+            },
         )
 
     cur.execute(
@@ -151,7 +150,7 @@ def rsvp_event(
         VALUES (%s, %s)
         RETURNING id, attendee_id, event_id, created_at
         """,
-        (user_id, event_id)
+        (user_id, event_id),
     )
     row = cur.fetchone()
 
@@ -164,7 +163,7 @@ def rsvp_event(
             "id": row[0],
             "attendee_id": row[1],
             "event_id": row[2],
-            "created_at": row[3].isoformat()
+            "created_at": row[3].isoformat(),
         }
     }
 
@@ -180,7 +179,7 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
         WHERE attendee_id = %s AND event_id = %s
         RETURNING id
         """,
-        (user_id, event_id)
+        (user_id, event_id),
     )
     deleted_rsvp = cur.fetchone()
     if deleted_rsvp is None:
@@ -190,8 +189,8 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
             status_code=404,
             detail={
                 "code": "NOT_FOUND",
-                "message": "No RSVP exists for this user on this event"
-            }
+                "message": "No RSVP exists for this user on this event",
+            },
         )
 
     conn.commit()
@@ -201,19 +200,21 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
 
 @router.post("", status_code=201, response_model=dict[str, EventPostResponse])
 def create_event(
-    request: EventPostRequest,
-    user_id: int = Depends(get_current_user_id)
+    request: EventPostRequest, user_id: int = Depends(get_current_user_id)
 ) -> dict[str, EventPostResponse]:
-    title, description, starts_at, ends_at, venue_id = \
-        request.title, request.description, request.starts_at, \
-        request.ends_at, request.venue_id
+    title, description, starts_at, ends_at, venue_id = (
+        request.title,
+        request.description,
+        request.starts_at,
+        request.ends_at,
+        request.venue_id,
+    )
 
     # Don't need to check description as it can be empty
     if not title.strip():
         raise HTTPException(
             status_code=400,
-            detail={"code": "BAD_REQUEST",
-                    "message": "Title is required"}
+            detail={"code": "BAD_REQUEST", "message": "Title is required"},
         )
 
     conn = get_connection()
@@ -228,7 +229,7 @@ def create_event(
             id, title, description, starts_at, ends_at,
             venue_id, organiser_id, created_at
         """,
-        (title, description, starts_at, ends_at, user_id, venue_id)
+        (title, description, starts_at, ends_at, user_id, venue_id),
     )
     row = cur.fetchone()
 
@@ -245,6 +246,6 @@ def create_event(
             "ends_at": row[4].isoformat(),
             "venue_id": row[5],
             "organiser_id": row[6],
-            "created_at": row[7].isoformat()
+            "created_at": row[7].isoformat(),
         }
     }

@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Optional
+
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
-from typing import Optional
 
 
 class EventGetListResponse(BaseModel):
@@ -40,12 +41,14 @@ class EventPostRequest(BaseModel):
             raise ValueError("Date must be an ISO 8601 string")
 
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return datetime.fromisoformat(value)
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "BAD_REQUEST",
-                        "message": "Date must be a valid ISO 8601 datetime"}
+                detail={
+                    "code": "BAD_REQUEST",
+                    "message": "Date must be a valid ISO 8601 datetime",
+                },
             )
 
     @model_validator(mode="after")
@@ -53,15 +56,17 @@ class EventPostRequest(BaseModel):
         starts_at = self.starts_at
         ends_at = self.ends_at
         if starts_at.tzinfo is None:
-            starts_at = starts_at.replace(tzinfo=timezone.utc)
+            starts_at = starts_at.replace(tzinfo=UTC)
         if ends_at.tzinfo is None:
-            ends_at = ends_at.replace(tzinfo=timezone.utc)
+            ends_at = ends_at.replace(tzinfo=UTC)
 
         if starts_at > ends_at:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "BAD_REQUEST",
-                        "message": "Start time must be before or equal to end time"}
+                detail={
+                    "code": "BAD_REQUEST",
+                    "message": "Start time must be before or equal to end time",
+                },
             )
         return self
 

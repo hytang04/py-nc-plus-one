@@ -1,7 +1,7 @@
 import pytest
+from fastapi.testclient import TestClient
 
 from db.connection import get_connection
-from fastapi.testclient import TestClient
 from main import app
 
 
