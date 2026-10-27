@@ -18,7 +18,23 @@ def list_all_events() -> dict[str, list[EventGetListResponse]]:
     """
     Return all events, ordered by event ID.
 
-    The response body is a dictionary with a single key `events` and its value a list of `EventList` objects.
+    Returns: Dictionary with single key `events` and value a list of `EventList` objects.
+
+    Expected response:
+    ```
+    {
+        "events": [
+            {
+                "id": 1,
+                "title": "Leeds Tech Meetup – June Edition",
+                "starts_at": "2026-06-18T18:30:00+01:00",
+                "ends_at": "2026-06-18T21:00:00+01:00",
+                "location": "Nexus, Leeds, LS2 8PD"
+            },
+        // ...
+        ]
+    }
+    ```
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -57,7 +73,26 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
     """
     Return a single event by its event ID.
 
-    The response body is a dictionary with a single key `event` and its value an `EventSingle` object.
+    Args: `event_id` (integer).
+
+    Returns: Dictionary with single key `event` and value an `EventSingle` object.
+
+    Example response:
+    ```
+    {
+        "event": {
+            "id": 2,
+            "title": "Intro to Machine Learning Workshop",
+            "description": "Hands-on workshop covering perceptrons, neural networks, and classifiers using NumPy and PyTorch.",
+            "starts_at": "2026-06-25T10:00:00+01:00",
+            "ends_at": "2026-06-25T13:00:00+01:00",
+            "location": "Online – Zoom",
+            "address": null,
+            "capacity": 100,
+            "created_at": "2026-06-09T10:38:20.737764+01:00"
+        }
+    }
+    ```
     """
     if event_id < 1:
         raise HTTPException(
@@ -109,6 +144,25 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
 def rsvp_event(
     event_id: int, user_id: int = Depends(get_current_user_id)
 ) -> dict[str, RSVP]:
+    """
+    RSVP an authenticated user to an event.
+
+    Args: `event_id` (integer).
+
+    Returns: Dictionary with single key `rsvp` and value an `RSVP` object.
+
+    Example response:
+    ```
+    {
+        "rsvp": {
+            "id": 55,
+            "attendee_id": 1,
+            "event_id": 12,
+            "created_at": "2025-06-01T11:00:00Z"
+        }
+    }
+    ```
+    """
     conn = get_connection()
     cur = conn.cursor()
 
@@ -174,6 +228,11 @@ def rsvp_event(
 
 @router.delete("/{event_id}/rsvp/me", status_code=204)
 def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) -> None:
+    """
+    Cancel an authenticated user's own RSVP if it exists.
+
+    Args: `event_id` (integer).
+    """
     conn = get_connection()
     cur = conn.cursor()
 
@@ -206,6 +265,38 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
 def create_event(
     request: EventPostRequest, user_id: int = Depends(get_current_user_id)
 ) -> dict[str, EventPostResponse]:
+    """
+    Create a new event, as long as the user is authenticated.
+
+    Returns: Dictionary with single key `event` and value an `EventPostResponse` object.
+
+    Example request:
+    ```
+    {
+        "title": "Summer Rooftop Social",
+        "description": "An evening of networking and good vibes.",
+        "starts_at": "2025-08-15T18:00:00Z",
+        "ends_at": "2025-08-15T21:00:00Z",
+        "venue_id": 2
+    }
+    ```
+
+    Example response:
+    ```
+    {
+        "event": {
+            "id": 12,
+            "title": "Summer Rooftop Social",
+            "description": "An evening of networking and good vibes.",
+            "starts_at": "2025-08-15T18:00:00Z",
+            "ends_at": "2025-08-15T21:00:00Z",
+            "venue_id": 2,
+            "organiser_id": 1,
+            "created_at": "2025-06-01T10:00:00Z"
+        }
+    }
+    ```
+    """
     title, description, starts_at, ends_at, venue_id = (
         request.title,
         request.description,

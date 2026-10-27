@@ -64,6 +64,27 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
 
 @router.post("/login", status_code=200, response_model=LoginResponse)
 def login(request: LoginRequest) -> LoginResponse:
+    """
+    Authenticate an existing user and return a JWT (JSON Web Token) for use on protected routes.
+
+    Returns: `LoginResponse` object containing the token.
+
+    Example request:
+    ```
+    {
+        "email": "alice@example.com",
+        "password": "securepassword123"
+    }
+    ```
+
+    Example response:
+    ```
+    {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer"
+    }
+    ```
+    """
     email, password = request.email, request.password
     if any(field is None or field.strip() == "" for field in (email, password)):
         raise HTTPException(
@@ -121,7 +142,28 @@ def register(request: RegisterRequest) -> dict[str, RegisterResponse]:
     """
     Register a new user account.
 
-    Returns: dictionary
+    Returns: Dictionary with key `user` and value a `RegisterResponse` object.
+
+    Example request:
+    ```
+    {
+        "name": "Alice Smith",
+        "email": "alice@example.com",
+        "password": "securepassword123"
+    }
+    ```
+
+    Example response:
+    ```
+    {
+        "user": {
+            "id": 1,
+            "name": "Alice Smith",
+            "email": "alice@example.com",
+            "created_at": "2025-06-01T10:00:00Z"
+        }
+    }
+    ```
     """
     name, email, password = request.name, request.email, request.password
     if any(field is None or field.strip() == "" for field in (name, email, password)):
