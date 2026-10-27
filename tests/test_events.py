@@ -392,3 +392,136 @@ def test_create_event_empty_title_returns_400(client, event_creation_payload):
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+def test_update_event_returns_full_updated_event(client, sample_event):
+    token = create_access_token(3)
+    response = client.patch(
+        f"/api/events/{sample_event}",
+        json={
+            "description": "Updated description",
+            "starts_at": "2027-10-04T19:00:00Z",
+            "ends_at": "2027-10-04T23:00:00Z",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    event = response.json()["event"]
+    assert set(event) == {
+        "id",
+        "title",
+        "description",
+        "starts_at",
+        "ends_at",
+        "venue_id",
+        "organiser_id",
+        "created_at",
+    }
+    assert event["id"] == sample_event
+    assert event["title"] == "Testing Tech"
+    assert event["description"] == "Updated description"
+    assert datetime.fromisoformat(event["starts_at"]) == datetime.fromisoformat(
+        "2027-10-04T19:00:00+00:00"
+    )
+    assert datetime.fromisoformat(event["ends_at"]) == datetime.fromisoformat(
+        "2027-10-04T23:00:00+00:00"
+    )
+    assert event["organiser_id"] == 3
+
+
+def test_update_event_changes_only_included_fields(client, sample_event):
+    token = create_access_token(3)
+    response = client.patch(
+        f"/api/events/{sample_event}",
+        json={"description": "Description only"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    event = response.json()["event"]
+    assert event["description"] == "Description only"
+    assert datetime.fromisoformat(event["starts_at"]) == datetime.fromisoformat(
+        "2027-10-04T18:30:00+00:00"
+    )
+    assert datetime.fromisoformat(event["ends_at"]) == datetime.fromisoformat(
+        "2027-10-04T21:30:00+00:00"
+    )
+
+
+def test_update_event_by_non_organiser_returns_403(client, sample_event):
+    token = create_access_token(2)
+    response = client.patch(
+        f"/api/events/{sample_event}",
+        json={"description": "Not authorised"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_update_nonexistent_event_returns_404(client):
+    token = create_access_token(3)
+    response = client.patch(
+        "/api/events/99999",
+        json={"description": "Missing event"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [None, {"Authorization": "Bearer invalid-token"}],
+    ids=["missing-token", "invalid-token"],
+)
+def test_update_event_without_valid_token_returns_401(
+    client, sample_event, headers
+):
+    response = client.patch(
+        f"/api/events/{sample_event}",
+        json={"description": "No auth"},
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+
+
+def test_update_event_with_invalid_date_returns_400(client, sample_event):
+    token = create_access_token(3)
+    response = client.patch(
+        f"/api/events/{sample_event}",
+        json={"starts_at": "not-an-iso-date"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"starts_at": "2027-10-04T22:00:00Z"},
+        {"ends_at": "2027-10-04T17:00:00Z"},
+        {
+            "starts_at": "2027-10-04T21:00:00Z",
+            "ends_at": "2027-10-04T20:00:00Z",
+        },
+    ],
+)
+def test_update_event_with_invalid_resulting_time_range_returns_400(
+    client, sample_event, changes
+):
+    token = create_access_token(3)
+    response = client.patch(
+        f"/api/events/{sample_event}",
+        json=changes,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"

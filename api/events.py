@@ -1,3 +1,5 @@
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.auth import get_current_user_id
@@ -5,8 +7,9 @@ from api.models import (
     RSVP,
     EventGetListResponse,
     EventGetSingleResponse,
+    EventPatchRequest,
+    EventPostPatchResponse,
     EventPostRequest,
-    EventPostResponse,
 )
 from db.connection import get_connection
 
@@ -261,14 +264,14 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
     conn.close()
 
 
-@router.post("", status_code=201, response_model=dict[str, EventPostResponse])
+@router.post("", status_code=201, response_model=dict[str, EventPostPatchResponse])
 def create_event(
     request: EventPostRequest, user_id: int = Depends(get_current_user_id)
-) -> dict[str, EventPostResponse]:
+) -> dict[str, EventPostPatchResponse]:
     """
     Create a new event, as long as the user is authenticated.
 
-    Returns: Dictionary with single key `event` and value an `EventPostResponse` object.
+    Returns: Dictionary with single key `event` and value an `EventPostPatchResponse` object.
 
     Example request:
     ```
@@ -338,7 +341,142 @@ def create_event(
     conn.close()
 
     return {
-        "event": EventPostResponse(
+        "event": EventPostPatchResponse(
+            id=row[0],
+            title=row[1],
+            description=row[2],
+            starts_at=row[3].isoformat(),
+            ends_at=row[4].isoformat(),
+            venue_id=row[5],
+            organiser_id=row[6],
+            created_at=row[7].isoformat(),
+        )
+    }
+
+
+@router.patch(
+    "/{event_id}", status_code=200, response_model=dict[str, EventPostPatchResponse]
+)
+def update_event(
+    request: EventPatchRequest,
+    event_id: int,
+    user_id: int = Depends(get_current_user_id),
+) -> dict[str, EventPostPatchResponse]:
+    """
+    Update an event's details, as long as the authenticated user is the organiser.
+
+    Args: `event_id` (integer).
+
+    Returns: Dictionary with single key `event` and value an `EventPostPatchResponse` object.
+
+    Example request:
+    ```
+    {
+        "description": "Updated description, now with live music!",
+        "starts_at": "2025-08-16T19:00:00Z",
+        "ends_at": "2025-08-16T23:00:00Z"
+    }
+    ```
+    All fields are optional.
+
+    Example response:
+    ```
+    {
+        "event": {
+            "id": 12,
+            "title": "Summer Rooftop Social",
+            "description": "Updated description, now with live music!",
+            "starts_at": "2025-08-16T19:00:00Z",
+            "ends_at": "2025-08-16T23:00:00Z",
+            "venue_id": 3,
+            "organiser_id": 1,
+            "created_at": "2025-06-01T10:00:00Z"
+        }
+    }
+    ```
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            id, title, description, starts_at, ends_at,
+            venue_id, organiser_id, created_at
+        FROM events
+        WHERE id = %s
+        FOR UPDATE
+        """,
+        (event_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
+        )
+
+    if row[6] != user_id:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Only the event organiser may update this event",
+            },
+        )
+
+    updates = {
+        field: getattr(request, field)
+        for field in ("description", "starts_at", "ends_at")
+        if field in request.model_fields_set
+    }
+
+    starts_at = updates.get("starts_at", row[3])
+    ends_at = updates.get("ends_at", row[4])
+    if starts_at.tzinfo is None:
+        starts_at = starts_at.replace(tzinfo=UTC)
+    if ends_at.tzinfo is None:
+        ends_at = ends_at.replace(tzinfo=UTC)
+    if starts_at >= ends_at:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "BAD_REQUEST",
+                "message": "End time must be after start time",
+            },
+        )
+
+    if updates:
+        assignments = ", ".join(f"{field} = %s" for field in updates)
+        cur.execute(
+            f"""
+            UPDATE events
+            SET {assignments}
+            WHERE id = %s AND organiser_id = %s
+            RETURNING
+                id, title, description, starts_at, ends_at,
+                venue_id, organiser_id, created_at
+            """,
+            (*updates.values(), event_id, user_id),
+        )
+        updated_row = cur.fetchone()
+        if updated_row is None:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            raise RuntimeError("Event update returned no row")
+        row = updated_row
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {
+        "event": EventPostPatchResponse(
             id=row[0],
             title=row[1],
             description=row[2],

@@ -33,9 +33,8 @@ class EventPostRequest(BaseModel):
     ends_at: datetime
     venue_id: int
 
-    @field_validator("starts_at", "ends_at", mode="before")
-    @classmethod
-    def parse_iso_datetime(cls, value: object) -> datetime:
+    @staticmethod
+    def parse_iso_datetime(value: object) -> datetime:
         if not isinstance(value, str) or len(value) < 11 or value[10] not in "Tt":
             raise ValueError("Date must be an ISO 8601 string")
 
@@ -49,6 +48,11 @@ class EventPostRequest(BaseModel):
                     "message": "Date must be a valid ISO 8601 datetime",
                 },
             )
+
+    @field_validator("starts_at", "ends_at", mode="before")
+    @classmethod
+    def validate_iso_datetime(cls, value: object) -> datetime:
+        return EventPostRequest.parse_iso_datetime(value)
 
     @model_validator(mode="after")
     def validate_event_time_range(self) -> "EventPostRequest":
@@ -70,7 +74,7 @@ class EventPostRequest(BaseModel):
         return self
 
 
-class EventPostResponse(BaseModel):
+class EventPostPatchResponse(BaseModel):
     id: int
     title: str
     description: str | None
@@ -79,6 +83,19 @@ class EventPostResponse(BaseModel):
     venue_id: int
     organiser_id: int
     created_at: str
+
+
+class EventPatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    description: str | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+
+    @field_validator("starts_at", "ends_at", mode="before")
+    @classmethod
+    def validate_iso_datetime(cls, value: object) -> datetime:
+        return EventPostRequest.parse_iso_datetime(value)
 
 
 class LoginRequest(BaseModel):
