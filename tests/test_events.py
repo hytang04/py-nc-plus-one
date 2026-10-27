@@ -525,3 +525,69 @@ def test_update_event_with_invalid_resulting_time_range_returns_400(
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "BAD_REQUEST"
+
+
+def test_get_event_attendees_returns_rsvped_users_without_password(
+    client, sample_event
+):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO rsvps (attendee_id, event_id) VALUES (%s, %s), (%s, %s)",
+        (1, sample_event, 2, sample_event),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    token = create_access_token(3)
+    response = client.get(
+        f"/api/events/{sample_event}/attendees",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    attendees = response.json()["attendees"]
+    assert attendees == [
+        {"id": 1, "name": "Alice Rahman", "email": "alice@example.com"},
+        {"id": 2, "name": "Bob Nguyen", "email": "bob@example.com"},
+    ]
+    assert all("password" not in attendee for attendee in attendees)
+
+
+def test_get_event_attendees_by_non_organiser_returns_403(client, sample_event):
+    token = create_access_token(2)
+    response = client.get(
+        f"/api/events/{sample_event}/attendees",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_get_event_attendees_for_nonexistent_event_returns_404(client):
+    token = create_access_token(3)
+    response = client.get(
+        "/api/events/99999/attendees",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [None, {"Authorization": "Bearer invalid-token"}],
+    ids=["missing-token", "invalid-token"],
+)
+def test_get_event_attendees_without_valid_token_returns_401(
+    client, sample_event, headers
+):
+    response = client.get(
+        f"/api/events/{sample_event}/attendees",
+        headers=headers,
+    )
+
+    assert response.status_code == 401

@@ -126,3 +126,9 @@ class RSVP(BaseModel):
     attendee_id: int
     event_id: int
     created_at: str
+
+
+class AttendeeGetListResponse(BaseModel):
+    id: int
+    name: str
+    email: str

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from api.auth import get_current_user_id
 from api.models import (
     RSVP,
+    AttendeeGetListResponse,
     EventGetListResponse,
     EventGetSingleResponse,
     EventPatchRequest,
@@ -486,4 +487,90 @@ def update_event(
             organiser_id=row[6],
             created_at=row[7].isoformat(),
         )
+    }
+
+
+@router.get(
+    "/{event_id}/attendees",
+    status_code=200,
+    response_model=dict[str, list[AttendeeGetListResponse]],
+)
+def get_event_attendees(
+    event_id: int, user_id: int = Depends(get_current_user_id)
+) -> dict[str, list[AttendeeGetListResponse]]:
+    """
+    Return a list of users who have RSVPed to a given event, as long as the authenticated
+    user is the event's organiser.
+
+    Args: `event_id` (integer).
+
+    Returns: Dictionary with single key `attendees` and value a list of `AttendeeGetListResponse` objects.
+
+    Example response:
+    ```
+    {
+        "attendees": [
+            {
+                "id": 1,
+                "name": "Alice Smith",
+                "email": "alice@example.com"
+            },
+            {
+                "id": 7,
+                "name": "Bob Jones",
+                "email": "bob@example.com"
+            }
+        ]
+    }
+    ```
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT organiser_id
+        FROM events
+        WHERE id = %s
+        """,
+        (event_id,),
+    )
+    event_organiser = cur.fetchone()
+    if event_organiser is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
+        )
+
+    if event_organiser[0] != user_id:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Only the event organiser may view attendees",
+            },
+        )
+
+    cur.execute(
+        """
+        SELECT u.id, u.name, u.email
+        FROM rsvps r
+        JOIN users u ON r.attendee_id = u.id
+        WHERE r.event_id = %s
+        ORDER BY u.id
+        """,
+        (event_id,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return {
+        "attendees": [
+            AttendeeGetListResponse(id=row[0], name=row[1], email=row[2])
+            for row in rows
+        ]
     }
