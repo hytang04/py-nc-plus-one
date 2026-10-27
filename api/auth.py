@@ -1,12 +1,13 @@
-import jwt
 import os
+from datetime import UTC, datetime, timedelta
 
-from datetime import datetime, timedelta, timezone
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jwt import PyJWTError
-from passlib.context import CryptContext
 
 from api.models import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
 from db.connection import get_connection
@@ -17,9 +18,7 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_MINS = 30
 
-password_context = CryptContext(
-    schemes=["bcrypt"]
-)
+password_context = PasswordHasher()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -32,13 +31,16 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return password_context.verify(plain_password, hashed_password)
+    try:
+        return password_context.verify(hashed_password, plain_password)
+    except VerifyMismatchError:
+        return False
 
 
 def create_access_token(user_id: int) -> str:
     payload = {
         "sub": str(user_id),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRY_MINS)
+        "exp": datetime.now(UTC) + timedelta(minutes=JWT_EXPIRY_MINS),
     }
     token = jwt.encode(payload, JWT_SECRET, JWT_ALGORITHM)
     return token
@@ -47,8 +49,7 @@ def create_access_token(user_id: int) -> str:
 def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
     credentials_exception = HTTPException(
         status_code=401,
-        detail={"code": "UNAUTHORIZED",
-                "message": "Could not validate credentials"}
+        detail={"code": "UNAUTHORIZED", "message": "Could not validate credentials"},
     )
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -67,32 +68,27 @@ def login(request: LoginRequest):
     if any(field is None or field.strip() == "" for field in (email, password)):
         raise HTTPException(
             status_code=400,
-            detail={"code": "BAD_REQUEST",
-                    "message": "Email and password fields are required"}
+            detail={
+                "code": "BAD_REQUEST",
+                "message": "Email and password fields are required",
+            },
         )
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        "SELECT id FROM users WHERE email = %s",
-        (request.email,)
-    )
+    cur.execute("SELECT id FROM users WHERE email = %s", (request.email,))
     row = cur.fetchone()
     if row is None:
         cur.close()
         conn.close()
         raise HTTPException(
             status_code=401,
-            detail={"code": "UNAUTHORIZED",
-                    "message": "User not found"}
+            detail={"code": "UNAUTHORIZED", "message": "User not found"},
         )
 
     user_id = row[0]
 
-    cur.execute(
-        "SELECT password FROM users WHERE id = %s",
-        (user_id,)
-    )
+    cur.execute("SELECT password FROM users WHERE id = %s", (user_id,))
     hashed_password = cur.fetchone()[0]
     cur.close()
     conn.close()
@@ -100,13 +96,10 @@ def login(request: LoginRequest):
     if verify_password(request.password, hashed_password):
         token = create_access_token(user_id)
 
-        return {"access_token": token,
-                "token_type": "bearer"}
+        return {"access_token": token, "token_type": "bearer"}
 
     raise HTTPException(
-        status_code=401,
-        detail={"code": "UNAUTHORIZED",
-                "message": "User not found"}
+        status_code=401, detail={"code": "UNAUTHORIZED", "message": "User not found"}
     )
 
 
@@ -116,8 +109,10 @@ def register(request: RegisterRequest):
     if any(field is None or field.strip() == "" for field in (name, email, password)):
         raise HTTPException(
             status_code=400,
-            detail={"code": "BAD_REQUEST",
-                    "message": "Name, email, and password fields are required"}
+            detail={
+                "code": "BAD_REQUEST",
+                "message": "Name, email, and password fields are required",
+            },
         )
 
     conn = get_connection()
@@ -130,7 +125,7 @@ def register(request: RegisterRequest):
         ON CONFLICT (email) DO NOTHING
         RETURNING id, name, email, created_at
         """,
-        (email, hashed_password, name)
+        (email, hashed_password, name),
     )
     row = cur.fetchone()
     if row is None:
@@ -138,8 +133,7 @@ def register(request: RegisterRequest):
         conn.close()
         raise HTTPException(
             status_code=409,
-            detail={"code": "CONFLICT",
-                    "message": "Email already registered"}
+            detail={"code": "CONFLICT", "message": "Email already registered"},
         )
 
     conn.commit()
@@ -151,6 +145,6 @@ def register(request: RegisterRequest):
             "id": row[0],
             "name": row[1],
             "email": row[2],
-            "created_at": row[3].isoformat()
+            "created_at": row[3].isoformat(),
         }
     }
