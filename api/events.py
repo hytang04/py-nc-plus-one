@@ -43,15 +43,13 @@ def list_all_events() -> dict[str, list[EventGetListResponse]]:
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute(
-        """
+    cur.execute("""
         SELECT e.id, e.title, e.starts_at, e.ends_at, v.name
         FROM events e
         LEFT JOIN venues v
         ON e.venue_id = v.id
         ORDER BY e.id;
-        """
-    )
+        """)
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -540,7 +538,8 @@ def get_event_attendees(
         cur.close()
         conn.close()
         raise HTTPException(
-            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Event not found"},
         )
 
     if event_organiser[0] != user_id:

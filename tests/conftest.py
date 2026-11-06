@@ -16,21 +16,24 @@ def sample_event():
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
+    cursor.execute("""
         INSERT INTO events (title, description, starts_at, ends_at, organiser_id, venue_id)
         VALUES (
             'Testing Tech',
             'Some description here',
             '2027-10-04T18:30:00+00:00',
             '2027-10-04T21:30:00+00:00',
-            3, 1
+            3,
+            1
         )
         RETURNING id
-        """
-    )
+        """)
 
-    event_id = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    if row is None:
+        return False
+
+    event_id = row[0]
     conn.commit()
     yield event_id
 
