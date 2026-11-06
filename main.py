@@ -6,10 +6,12 @@ from fastapi.responses import JSONResponse
 
 from api.auth import router as auth_router
 from api.events import router as events_router
+from api.user import router as user_router
 
 app = FastAPI(title="NC Plus One")
 app.include_router(auth_router)
 app.include_router(events_router)
+app.include_router(user_router)
 
 
 @app.exception_handler(RequestValidationError)

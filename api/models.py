@@ -132,3 +132,12 @@ class AttendeeGetListResponse(BaseModel):
     id: int
     name: str
     email: str
+
+
+class UserEventGetListResponse(BaseModel):
+    id: int
+    title: str
+    starts_at: str
+    rsvp_date: str
+    event_rank: int
+    total_rsvps: int
