@@ -141,3 +141,12 @@ class UserEventGetListResponse(BaseModel):
     rsvp_date: str
     event_rank: int
     total_rsvps: int
+
+
+class OrganiserResponse(BaseModel):
+    organiser_id: int
+    name: str
+    total_events: int
+    avg_attendance: float
+    best_attended_count: int
+    organiser_rank: int
