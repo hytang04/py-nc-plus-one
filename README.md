@@ -45,7 +45,15 @@ events, and view statistics about their audience.
    ```
 
    Provide the username, password, host, port (default 5432) and database name
-   for the PostgresQL connection.
+   for the PostgresQL connection, for example:
+
+   ```shell
+   PGUSER=postgres
+   PGPASSWORD=password
+   PGHOST=localhost
+   PGPORT=5432
+   PGDATABASE=nc_plus_one
+   ```
 
    `JWT_SECRET` should be generated randomly:
 
