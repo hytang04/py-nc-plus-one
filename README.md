@@ -90,3 +90,26 @@ createdb nc_plus_one_test
 PGDATABASE='nc_plus_one_test' python -m db.seed
 PGDATABASE='nc_plus_one_test' pytest
 ```
+
+## Terraform setup
+
+### Prerequisites
+- [AWS CLI](https://aws.amazon.com/cli/) installed and configured with valid credentials (`aws configure`).
+- [Terraform](https://developer.hashicorp.com/terraform/install) (version `>= 1.5.0`) installed.
+
+1. Export AWS credentials:
+   ```shell
+   export AWS_ACCESS_KEY_ID="example-id"
+   export AWS_SECRET_ACCESS_KEY="example-key"
+   export AWS_SESSION_TOKEN="example-token"
+   ```
+
+2. Make a copy of `terraform-setup.sh.example` and enter your unique suffix for the S3 bucket name:
+   ```shell
+   cp terraform-setup.sh.example terraform-setup.sh
+   ```
+
+3. Run `terraform-setup.sh`:
+   ```shell
+   ./terraform-setup.sh
+   ```
