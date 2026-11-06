@@ -1,7 +1,7 @@
 import pytest
 
 from api.auth import verify_password
-from db.connection import get_connection
+from db.connection import get_cursor
 
 
 @pytest.fixture
@@ -13,12 +13,8 @@ def make_register():
     }
     yield payload
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM users WHERE email = %s", (payload["email"],))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute("DELETE FROM users WHERE email = %s", (payload["email"],))
 
 
 def test_login_valid_credentials_returns_200_and_token(client):
@@ -105,15 +101,12 @@ def test_register_returns_created_user_without_password(client, make_register):
     assert user["name"] == make_register["name"]
     assert user["email"] == make_register["email"]
     assert "password" not in user
+    with get_cursor() as cur:
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT password FROM users WHERE email = %s", (make_register["email"],)
-    )
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+        cur.execute(
+            "SELECT password FROM users WHERE email = %s", (make_register["email"],)
+        )
+        row = cur.fetchone()
 
     assert row is not None, "Registered user was not found in the database"
     stored_password = row[0]

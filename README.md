@@ -44,11 +44,8 @@ events, and view statistics about their audience.
    cp .env.example .env
    ```
 
-   Set `DATABASE_URL` to your local PostgreSQL connection string, for example:
-
-   ```text
-   DATABASE_URL=postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one
-   ```
+   Provide the username, password, host, port (default 5432) and database name
+   for the PostgresQL connection.
 
    `JWT_SECRET` should be generated randomly:
 
@@ -78,10 +75,10 @@ events, and view statistics about their audience.
 ### Testing
 
 To test, create a separate test database `nc_plus_one_test` and point the new
-`DATABASE_URL` at it when seeding the database and running `pytest`.
+`PGDATABASE` at it when seeding the database and running `pytest`.
 
 ```shell
 createdb nc_plus_one_test
-DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' python -m db.seed
-DATABASE_URL='postgresql://USERNAME:PASSWORD@localhost:5432/nc_plus_one_test' pytest
+PGDATABASE='nc_plus_one_test' python -m db.seed
+PGDATABASE='nc_plus_one_test' pytest
 ```

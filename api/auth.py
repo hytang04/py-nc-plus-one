@@ -10,7 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt import PyJWTError
 
 from api.models import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
-from db.connection import get_connection
+from db.connection import get_cursor
 
 load_dotenv()
 
@@ -95,37 +95,28 @@ def login(request: LoginRequest) -> LoginResponse:
             },
         )
 
-    conn = get_connection()
-    cur = conn.cursor()
+    with get_cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE email = %s", (request.email,))
+        row = cur.fetchone()
 
-    cur.execute("SELECT id FROM users WHERE email = %s", (request.email,))
-    row = cur.fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "UNAUTHORIZED", "message": "User not found"},
+            )
 
-    if row is None:
-        cur.close()
-        conn.close()
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "UNAUTHORIZED", "message": "User not found"},
-        )
+        user_id = row[0]
 
-    user_id = row[0]
-
-    cur.execute("SELECT password FROM users WHERE id = %s", (user_id,))
-    row = cur.fetchone()
+        cur.execute("SELECT password FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
 
     if row is None:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=401,
             detail={"code": "UNAUTHORIZED", "message": "User not found"},
         )
 
     hashed_password = row[0]
-
-    cur.close()
-    conn.close()
 
     if verify_password(request.password, hashed_password):
         token = create_access_token(user_id)
@@ -175,30 +166,24 @@ def register(request: RegisterRequest) -> dict[str, RegisterResponse]:
             },
         )
 
-    conn = get_connection()
-    cur = conn.cursor()
     hashed_password = hash_password(password)
-    cur.execute(
-        """
-        INSERT INTO users (email, password, name)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (email) DO NOTHING
-        RETURNING id, name, email, created_at
-        """,
-        (email, hashed_password, name),
-    )
-    row = cur.fetchone()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO users (email, password, name)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (email) DO NOTHING
+            RETURNING id, name, email, created_at
+            """,
+            (email, hashed_password, name),
+        )
+        row = cur.fetchone()
+
     if row is None:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=409,
             detail={"code": "CONFLICT", "message": "Email already registered"},
         )
-
-    conn.commit()
-    cur.close()
-    conn.close()
 
     return {
         "user": RegisterResponse(

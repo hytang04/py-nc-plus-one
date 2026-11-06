@@ -12,7 +12,7 @@ from api.models import (
     EventPostPatchResponse,
     EventPostRequest,
 )
-from db.connection import get_connection
+from db.connection import get_cursor
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -40,19 +40,15 @@ def list_all_events() -> dict[str, list[EventGetListResponse]]:
     }
     ```
     """
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT e.id, e.title, e.starts_at, e.ends_at, v.name
-        FROM events e
-        LEFT JOIN venues v
-        ON e.venue_id = v.id
-        ORDER BY e.id;
-        """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT e.id, e.title, e.starts_at, e.ends_at, v.name
+            FROM events e
+            LEFT JOIN venues v
+            ON e.venue_id = v.id
+            ORDER BY e.id;
+            """)
+        rows = cur.fetchall()
 
     return {
         "events": [
@@ -104,27 +100,25 @@ def get_event_by_id(event_id: int) -> dict[str, EventGetSingleResponse]:
                 "message": f"{event_id} is not a valid integer",
             },
         )
-    conn = get_connection()
-    cur = conn.cursor()
 
-    cur.execute(
-        """
-        SELECT e.id, e.title, e.description, e.starts_at, e.ends_at,
-            v.name, v.address, v.capacity, e.created_at
-        FROM events e
-        LEFT JOIN venues v
-        ON e.venue_id = v.id
-        WHERE e.id = %s;
-        """,
-        (event_id,),
-    )
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT e.id, e.title, e.description, e.starts_at, e.ends_at,
+                v.name, v.address, v.capacity, e.created_at
+            FROM events e
+            LEFT JOIN venues v
+            ON e.venue_id = v.id
+            WHERE e.id = %s;
+            """,
+            (event_id,),
+        )
+        row = cur.fetchone()
 
     if row is None:
         raise HTTPException(
-            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Event not found"},
         )
 
     return {
@@ -165,58 +159,46 @@ def rsvp_event(
     }
     ```
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    with get_cursor() as cur:
+        # Check that event exists
+        cur.execute("SELECT id FROM events WHERE id = %s", (event_id,))
+        event = cur.fetchone()
+        if event is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "NOT_FOUND", "message": "Event not found"},
+            )
 
-    # Check that event exists
-    cur.execute("SELECT id FROM events WHERE id = %s", (event_id,))
-    event = cur.fetchone()
-    if event is None:
-        cur.close()
-        conn.close()
-        raise HTTPException(
-            status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
+        # Check if user has already RSVPed event
+        cur.execute(
+            """
+            SELECT 1 FROM rsvps
+            WHERE attendee_id = %s AND event_id = %s
+            LIMIT 1
+            """,
+            (user_id, event_id),
         )
+        already_rsvped = cur.fetchone() is not None
+        if already_rsvped:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "CONFLICT",
+                    "message": "User has already RSVPed to this event",
+                },
+            )
 
-    # Check if user has already RSVPed event
-    cur.execute(
-        """
-        SELECT 1 FROM rsvps
-        WHERE attendee_id = %s AND event_id = %s
-        LIMIT 1
-        """,
-        (user_id, event_id),
-    )
-    already_rsvped = cur.fetchone() is not None
-    if already_rsvped:
-        cur.close()
-        conn.close()
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "CONFLICT",
-                "message": "User has already RSVPed to this event",
-            },
+        cur.execute(
+            """
+            INSERT INTO rsvps (attendee_id, event_id)
+            VALUES (%s, %s)
+            RETURNING id, attendee_id, event_id, created_at
+            """,
+            (user_id, event_id),
         )
-
-    cur.execute(
-        """
-        INSERT INTO rsvps (attendee_id, event_id)
-        VALUES (%s, %s)
-        RETURNING id, attendee_id, event_id, created_at
-        """,
-        (user_id, event_id),
-    )
-    row = cur.fetchone()
-    if row is None:
-        conn.rollback()
-        cur.close()
-        conn.close()
-        raise RuntimeError("RSVP insert returned no row")
-
-    conn.commit()
-    cur.close()
-    conn.close()
+        row = cur.fetchone()
+        if row is None:
+            raise RuntimeError("RSVP insert returned no row")
 
     return {
         "rsvp": RSVP(
@@ -235,21 +217,18 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
 
     Args: `event_id` (integer).
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM rsvps
+            WHERE attendee_id = %s AND event_id = %s
+            RETURNING id
+            """,
+            (user_id, event_id),
+        )
+        deleted_rsvp = cur.fetchone()
 
-    cur.execute(
-        """
-        DELETE FROM rsvps
-        WHERE attendee_id = %s AND event_id = %s
-        RETURNING id
-        """,
-        (user_id, event_id),
-    )
-    deleted_rsvp = cur.fetchone()
     if deleted_rsvp is None:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=404,
             detail={
@@ -257,10 +236,6 @@ def cancel_own_rsvp(event_id: int, user_id: int = Depends(get_current_user_id)) 
                 "message": "No RSVP exists for this user on this event",
             },
         )
-
-    conn.commit()
-    cur.close()
-    conn.close()
 
 
 @router.post("", status_code=201, response_model=dict[str, EventPostPatchResponse])
@@ -314,30 +289,23 @@ def create_event(
             detail={"code": "BAD_REQUEST", "message": "Title is required"},
         )
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO events (
-            title, description, starts_at,
-            ends_at, organiser_id, venue_id
-        ) VALUES (%s, %s, %s, %s, %s, %s)
-        RETURNING
-            id, title, description, starts_at, ends_at,
-            venue_id, organiser_id, created_at
-        """,
-        (title, description, starts_at, ends_at, user_id, venue_id),
-    )
-    row = cur.fetchone()
-    if row is None:
-        conn.rollback()
-        cur.close()
-        conn.close()
-        raise RuntimeError("Event insert returned no row")
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO events (
+                title, description, starts_at,
+                ends_at, organiser_id, venue_id
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING
+                id, title, description, starts_at, ends_at,
+                venue_id, organiser_id, created_at
+            """,
+            (title, description, starts_at, ends_at, user_id, venue_id),
+        )
+        row = cur.fetchone()
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    if row is None:
+        raise RuntimeError("Event insert returned no row")
 
     return {
         "event": EventPostPatchResponse(
@@ -394,30 +362,26 @@ def update_event(
     }
     ```
     """
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT
-            id, title, description, starts_at, ends_at,
-            venue_id, organiser_id, created_at
-        FROM events
-        WHERE id = %s
-        FOR UPDATE
-        """,
-        (event_id,),
-    )
-    row = cur.fetchone()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                id, title, description, starts_at, ends_at,
+                venue_id, organiser_id, created_at
+            FROM events
+            WHERE id = %s
+            FOR UPDATE
+            """,
+            (event_id,),
+        )
+        row = cur.fetchone()
+
     if row is None:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=404, detail={"code": "NOT_FOUND", "message": "Event not found"}
         )
 
     if row[6] != user_id:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=403,
             detail={
@@ -439,8 +403,6 @@ def update_event(
     if ends_at.tzinfo is None:
         ends_at = ends_at.replace(tzinfo=UTC)
     if starts_at >= ends_at:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=400,
             detail={
@@ -451,28 +413,23 @@ def update_event(
 
     if updates:
         assignments = ", ".join(f"{field} = %s" for field in updates)
-        cur.execute(
-            f"""
-            UPDATE events
-            SET {assignments}
-            WHERE id = %s AND organiser_id = %s
-            RETURNING
-                id, title, description, starts_at, ends_at,
-                venue_id, organiser_id, created_at
-            """,
-            (*updates.values(), event_id, user_id),
-        )
-        updated_row = cur.fetchone()
+        with get_cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE events
+                SET {assignments}
+                WHERE id = %s AND organiser_id = %s
+                RETURNING
+                    id, title, description, starts_at, ends_at,
+                    venue_id, organiser_id, created_at
+                """,
+                (*updates.values(), event_id, user_id),
+            )
+            updated_row = cur.fetchone()
+
         if updated_row is None:
-            conn.rollback()
-            cur.close()
-            conn.close()
             raise RuntimeError("Event update returned no row")
         row = updated_row
-
-    conn.commit()
-    cur.close()
-    conn.close()
 
     return {
         "event": EventPostPatchResponse(
@@ -522,29 +479,24 @@ def get_event_attendees(
     }
     ```
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT organiser_id
+            FROM events
+            WHERE id = %s
+            """,
+            (event_id,),
+        )
+        event_organiser = cur.fetchone()
 
-    cur.execute(
-        """
-        SELECT organiser_id
-        FROM events
-        WHERE id = %s
-        """,
-        (event_id,),
-    )
-    event_organiser = cur.fetchone()
     if event_organiser is None:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=404,
             detail={"code": "NOT_FOUND", "message": "Event not found"},
         )
 
     if event_organiser[0] != user_id:
-        cur.close()
-        conn.close()
         raise HTTPException(
             status_code=403,
             detail={
@@ -552,20 +504,18 @@ def get_event_attendees(
                 "message": "Only the event organiser may view attendees",
             },
         )
-
-    cur.execute(
-        """
-        SELECT u.id, u.name, u.email
-        FROM rsvps r
-        JOIN users u ON r.attendee_id = u.id
-        WHERE r.event_id = %s
-        ORDER BY u.id
-        """,
-        (event_id,),
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT u.id, u.name, u.email
+            FROM rsvps r
+            JOIN users u ON r.attendee_id = u.id
+            WHERE r.event_id = %s
+            ORDER BY u.id
+            """,
+            (event_id,),
+        )
+        rows = cur.fetchall()
 
     return {
         "attendees": [

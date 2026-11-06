@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 from api.auth import get_current_user_id
 from api.models import UserEventGetListResponse
-from db.connection import get_connection
+from db.connection import get_cursor
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -44,31 +44,27 @@ def list_all_rsvp_events(
     }
     ```
     """
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        SELECT
-            e.id, e.title, e.starts_at, r.created_at,
-            ROW_NUMBER() OVER (
-                PARTITION BY r.attendee_id
-                ORDER BY e.starts_at ASC
-            ),
-            COUNT(*) OVER (
-                PARTITION BY r.attendee_id
-            )
-        FROM rsvps r
-        JOIN events e
-        ON r.event_id = e.id
-        WHERE r.attendee_id = %s
-        ORDER BY e.id;
-        """,
-        (user_id,),
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                e.id, e.title, e.starts_at, r.created_at,
+                ROW_NUMBER() OVER (
+                    PARTITION BY r.attendee_id
+                    ORDER BY e.starts_at ASC
+                ),
+                COUNT(*) OVER (
+                    PARTITION BY r.attendee_id
+                )
+            FROM rsvps r
+            JOIN events e
+            ON r.event_id = e.id
+            WHERE r.attendee_id = %s
+            ORDER BY e.id;
+            """,
+            (user_id,),
+        )
+        rows = cur.fetchall()
 
     return {
         "events": [

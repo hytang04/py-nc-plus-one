@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from api.auth import create_access_token
-from db.connection import get_connection
+from db.connection import get_cursor
 
 
 @pytest.fixture
@@ -17,12 +17,8 @@ def event_creation_payload():
     }
     yield payload
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM events WHERE title = %s", (payload["title"],))
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute("DELETE FROM events WHERE title = %s", (payload["title"],))
 
 
 def test_list_all_events_returns_correct_shape(client, sample_event):
@@ -185,18 +181,14 @@ def test_cancel_own_rsvp_returns_204(client, sample_event):
 
     assert response.status_code == 204
     assert response.content == b""
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT * FROM rsvps WHERE attendee_id = %s AND event_id = %s",
+            (1, sample_event),
+        )
+        row = cur.fetchone()
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT * FROM rsvps WHERE attendee_id = %s AND event_id = %s",
-        (1, sample_event),
-    )
-    row = cur.fetchone()
     assert row is None
-
-    cur.close()
-    conn.close()
 
 
 def test_cancel_rsvp_for_another_user_does_not_delete_their_rsvp(client, sample_event):
@@ -216,17 +208,14 @@ def test_cancel_rsvp_for_another_user_does_not_delete_their_rsvp(client, sample_
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT * FROM rsvps WHERE attendee_id = %s AND event_id = %s",
-        (2, sample_event),
-    )
-    row = cur.fetchone()
-    assert row is not None
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT * FROM rsvps WHERE attendee_id = %s AND event_id = %s",
+            (2, sample_event),
+        )
+        row = cur.fetchone()
 
-    cur.close()
-    conn.close()
+    assert row is not None
 
 
 def test_cancel_missing_rsvp_returns_404(client, sample_event):
@@ -478,9 +467,7 @@ def test_update_nonexistent_event_returns_404(client):
     [None, {"Authorization": "Bearer invalid-token"}],
     ids=["missing-token", "invalid-token"],
 )
-def test_update_event_without_valid_token_returns_401(
-    client, sample_event, headers
-):
+def test_update_event_without_valid_token_returns_401(client, sample_event, headers):
     response = client.patch(
         f"/api/events/{sample_event}",
         json={"description": "No auth"},
@@ -530,15 +517,11 @@ def test_update_event_with_invalid_resulting_time_range_returns_400(
 def test_get_event_attendees_returns_rsvped_users_without_password(
     client, sample_event
 ):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO rsvps (attendee_id, event_id) VALUES (%s, %s), (%s, %s)",
-        (1, sample_event, 2, sample_event),
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    with get_cursor() as cur:
+        cur.execute(
+            "INSERT INTO rsvps (attendee_id, event_id) VALUES (%s, %s), (%s, %s)",
+            (1, sample_event, 2, sample_event),
+        )
 
     token = create_access_token(3)
     response = client.get(
