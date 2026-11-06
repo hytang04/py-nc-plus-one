@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from api.models import OrganiserResponse
 from db.connection import get_connection
@@ -9,11 +9,11 @@ router = APIRouter(prefix="/api/organisers", tags=["organisers"])
 @router.get(
     "/{organiser_id}/stats",
     status_code=200,
-    response_model=dict[str, list[OrganiserResponse]],
+    response_model=dict[str, OrganiserResponse],
 )
 def get_organiser_stats(
     organiser_id: int,
-) -> dict[str, list[OrganiserResponse]]:
+) -> dict[str, OrganiserResponse]:
     """
     Return aggregate statistics for an organiser, including how they rank compared to all other organisers.
 
@@ -73,20 +73,25 @@ def get_organiser_stats(
         """,
         (organiser_id,),
     )
-    rows = cur.fetchall()
+    row = cur.fetchone()
+    if row is None:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Event organiser not found"},
+        )
+
     cur.close()
     conn.close()
 
     return {
-        "stats": [
-            OrganiserResponse(
-                organiser_id=r[0],
-                name=r[1],
-                total_events=r[2],
-                avg_attendance=r[3],
-                best_attended_count=r[4],
-                organiser_rank=r[5],
-            )
-            for r in rows
-        ]
+        "stats": OrganiserResponse(
+            organiser_id=row[0],
+            name=row[1],
+            total_events=row[2],
+            avg_attendance=row[3],
+            best_attended_count=row[4],
+            organiser_rank=row[5],
+        )
     }
